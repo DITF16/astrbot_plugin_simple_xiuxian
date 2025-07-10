@@ -15,7 +15,7 @@ from astrbot.core.star import StarTools
     "astrbot_plugin_simple_xiuxian",
     "DITF16",
     "一个比较简单的修仙模拟器游戏",
-    "1.1",
+    "1.2",
     "https://github.com/DITF16/astrbot_plugin_simple_xiuxian"
 )
 class XiuXianPlugin(Star):
@@ -722,24 +722,30 @@ class XiuXianPlugin(Star):
         if not self._is_group_enabled(event): return
         user_id = event.get_sender_id()
         player1 = self._get_player(user_id)
-        if not player1:
-            yield event.plain_result("你尚未踏入仙途。")
-            event.stop_event()
-            return
-        target_id = event.get_at_user_id()
+        if not player1: yield event.plain_result("你尚未踏入仙途。"); return
+
+        target_id = None
+        message_chain = event.get_messages()
+        for msg in message_chain:
+            if msg.type == 'At':
+                json_str = msg.json()
+                data = json.loads(json_str)
+                # print(data)
+                # print(data["qq"])
+                target_id = data["qq"]
+                break
+
         if not target_id:
             yield event.plain_result("请@你要切磋的道友。")
-            event.stop_event()
             return
         if target_id == user_id:
             yield event.plain_result("道友，不可与自己为敌。")
-            event.stop_event()
             return
         player2 = self._get_player(target_id)
         if not player2:
             yield event.plain_result("对方尚未踏入仙途。")
-            event.stop_event()
             return
+
         p1_hp, p2_hp = player1['hp'], player2['hp']
         p1_atk, p1_def = player1['attack'], player1['defense']
         p2_atk, p2_def = player2['attack'], player2['defense']
@@ -754,7 +760,7 @@ class XiuXianPlugin(Star):
             if p2_hp <= 0: break
             damage2 = max(1, p2_atk - p1_def + random.randint(-5, 5))
             p1_hp -= damage2
-            battle_log += f"回合{turn}: {player2['nickname']}对{player1['nickname']}造成了{damage2}点伤害！({player1['nickname']}剩余{max(0, p1_hp)}气血)\n"
+            battle_log += f"回合{turn}: {player2['nickname']}对{player1['nickname']}造成了{damage2}点伤害！({player1['nickname']}剩余{max(0, p1_hp)}气血)\n\n"
         if p1_hp > p2_hp:
             winner, loser = player1, player2
         else:
@@ -765,7 +771,6 @@ class XiuXianPlugin(Star):
         self._update_player(loser['user_id'], {'gold': loser['gold'] - loser_gold_loss, 'hp': loser['max_hp']})
         battle_log += f"\n战斗结束！【{winner['nickname']}】技高一筹，战胜了【{loser['nickname']}】！\n并获得了{loser_gold_loss}灵石作为战利品。"
         yield event.plain_result(battle_log)
-        event.stop_event()
 
     @filter.command("储物戒")
     async def show_inventory(self, event: AstrMessageEvent):
