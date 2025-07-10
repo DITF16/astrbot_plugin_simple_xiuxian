@@ -1,0 +1,12 @@
+{
+  "enabled_groups": {
+    "type": "list",
+    "description": "插件生效的群聊白名单",
+    "hint": "在此处添加允许使用此插件的群聊ID。如果这个列表为空，插件将在所有群聊中生效。",
+    "items": {
+      "type": "string",
+      "description": "群聊ID"
+    },
+    "default": []
+  }
+}
