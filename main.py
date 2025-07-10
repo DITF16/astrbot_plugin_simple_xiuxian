@@ -15,7 +15,7 @@ from astrbot.core.star import StarTools
     "astrbot_plugin_simple_xiuxian",
     "DITF16",
     "一个比较简单的修仙模拟器游戏",
-    "1.0",
+    "1.1",
     "https://github.com/DITF16/astrbot_plugin_simple_xiuxian"
 )
 class XiuXianPlugin(Star):
@@ -119,6 +119,11 @@ class XiuXianPlugin(Star):
             '''CREATE TABLE IF NOT EXISTS inventory (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, item_id INTEGER, quantity INTEGER, is_equipped BOOLEAN DEFAULT 0, FOREIGN KEY (user_id) REFERENCES players (user_id), FOREIGN KEY (item_id) REFERENCES items (item_id))''')
         cursor.execute(
             '''CREATE TABLE IF NOT EXISTS sects (id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT UNIQUE, leader_id TEXT, announcement TEXT, level INTEGER DEFAULT 1, resources INTEGER DEFAULT 0, created_at TEXT)''')
+
+        # --- 新增逻辑 ---
+        # 创建重置日志表，用于记录每日重置次数
+        cursor.execute('''CREATE TABLE IF NOT EXISTS reset_logs (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT, reset_date TEXT)''')
+        # --- 逻辑结束 ---
 
         self._populate_initial_items(cursor)
         conn.commit()
@@ -905,34 +910,40 @@ class XiuXianPlugin(Star):
 
     @filter.command("重置修仙数据")
     async def reset_data(self, event: AstrMessageEvent):
-        '''【高危】删除你的所有修仙数据，重入轮回。'''
+        '''【高危】删除你的所有修仙数据，重入轮回。每位玩家每日仅限一次。'''
         if not self._is_group_enabled(event): return
+
         user_id = event.get_sender_id()
         if not self._get_player(user_id, calculate_exp=False):
             yield event.plain_result("未找到你的修仙数据。")
             return
 
-        confirm_key = user_id
-        now = time.time()
+        today = datetime.now().strftime("%Y-%m-%d")
+        conn = self._get_db_connection()
+        cursor = conn.cursor()
+        cursor.execute("SELECT 1 FROM reset_logs WHERE user_id = ? AND reset_date = ?", (user_id, today))
+        already_reset = cursor.fetchone()
+        conn.close()
 
-        # 检查是否存在确认记录，并且时间未超过60秒
-        if confirm_key in self.reset_confirmations and now - self.reset_confirmations[confirm_key] < 60:
+        if already_reset:
+            yield event.plain_result("道友，天命不可常改，每日仅有一次重入轮回之机。请明日再来吧。")
+            return
+
+        confirm_key = f"xiuxian_reset_confirm_{user_id}"
+        if self.context.get(confirm_key):
+            # 再次确认可以重置
             conn = self._get_db_connection()
             cursor = conn.cursor()
             cursor.execute("DELETE FROM players WHERE user_id = ?", (user_id,))
             cursor.execute("DELETE FROM inventory WHERE user_id = ?", (user_id,))
-            # 如果有宗门且是宗主，也一并处理
             cursor.execute("DELETE FROM sects WHERE leader_id = ?", (user_id,))
+            cursor.execute("INSERT INTO reset_logs (user_id, reset_date) VALUES (?, ?)", (user_id, today))
+
             conn.commit()
             conn.close()
-
-            # 从确认字典中删除记录
-            del self.reset_confirmations[confirm_key]
-
+            self.context.delete(confirm_key)
             yield event.plain_result("你的所有尘缘已了，重入轮回。")
         else:
-            # 记录当前时间戳，等待用户二次确认
-            self.reset_confirmations[confirm_key] = now
+            self.context.set(confirm_key, True, ttl=60)
             yield event.plain_result(
-                "【高危警告】此操作将删除你的所有修仙数据且无法恢复！\n若道心坚定，请在60秒内再次发送 /重置修仙数据 以确认。"
-            )
+                "此操作将删除你的所有数据且无法恢复！\n若道心坚定，请在60秒内再次发送 /重置修仙数据 以确认。")
