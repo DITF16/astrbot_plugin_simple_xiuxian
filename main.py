@@ -400,7 +400,7 @@ class XiuXianPlugin(Star):
         root_info = self.SPIRIT_ROOTS[root_type]
         realm_info = self._get_realm_info(0, 1)
         msg = (
-            f"仙路尽头谁为峰，一见道友皆成空！\n恭喜 {event.get_sender_name()} 踏入仙途！\n你的灵根是【{root_type}灵根】，{root_info['desc']}。\n获赠启动灵石：{self.INITIAL_GOLD}枚。\n当前境界：{realm_info['full_name']}\n发送 /我的信息 查看状态，发送 /闭关 开始获取修为吧！")
+            f"仙路尽头谁为峰，一见道友皆成空！\n恭喜 {event.get_sender_name()} 踏入仙途！\n你的灵根是【{root_type}灵根】，{root_info['desc']}。\n获赠启动灵石：{self.INITIAL_GOLD}枚。\n当前境界：{realm_info['full_name']}\n发送 /修仙面板 查看状态，发送 /闭关 开始获取修为吧！")
         yield event.plain_result(msg)
         event.stop_event()
 
